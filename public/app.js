@@ -337,6 +337,8 @@ document.getElementById("resetDemo").onclick=()=>{
   localStorage.removeItem("axo-light");setTheme(false);document.body.classList.remove("no-motion");
   document.getElementById("motionSwitch").checked=true;toast("Préférences réinitialisées");
 };
+const currentDateLabel=document.getElementById("currentDateLabel");
+if(currentDateLabel) currentDateLabel.textContent=new Intl.DateTimeFormat("fr-BE",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}).format(new Date()).toLocaleUpperCase("fr-BE");
 renderTables();
 updateOverview(document.getElementById("dateRange")?.value||"30");
 setPlatformPageStats("tiktok",["0","0","0","0"],["abonnés","vues sur 30 jours","likes sur 30 jours","partages"]);
