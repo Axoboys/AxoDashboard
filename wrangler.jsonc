@@ -17,5 +17,9 @@
       "database_id": "c3e0572b-79ff-4cf9-9783-c7aaf705edd0"
     }
   ],
-  "keep_vars": true
+  "keep_vars": true,
+  "vars": {
+    "GOOGLE_CLIENT_ID": "795193745293-7u5m68ni4tnlinrb3fjc0vnbunktng1o.apps.googleusercontent.com",
+    "GOOGLE_REDIRECT_URI": "https://axodashboard.denisnollan9.workers.dev/api/auth/youtube/callback"
+  }
 }
