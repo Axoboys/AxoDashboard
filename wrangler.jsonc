@@ -20,6 +20,9 @@
   "keep_vars": true,
   "vars": {
     "GOOGLE_CLIENT_ID": "795193745293-7u5m68ni4tnlinrb3fjc0vnbunktng1o.apps.googleusercontent.com",
-    "GOOGLE_REDIRECT_URI": "https://axodashboard.denisnollan9.workers.dev/api/auth/youtube/callback"
+    "GOOGLE_REDIRECT_URI": "https://axodashboard.denisnollan9.workers.dev/api/auth/youtube/callback",
+    "META_APP_ID": "2520891861731114",
+    "META_CONFIG_ID": "1288601726790079",
+    "META_REDIRECT_URI": "https://axodashboard.denisnollan9.workers.dev/api/auth/instagram/callback"
   }
 }
