@@ -6,7 +6,9 @@
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": [
+      "/api/*"
+    ]
   },
   "d1_databases": [
     {
@@ -14,5 +16,6 @@
       "database_name": "axo-analytics-db",
       "database_id": "c3e0572b-79ff-4cf9-9783-c7aaf705edd0"
     }
-  ]
+  ],
+  "keep_vars": true
 }
