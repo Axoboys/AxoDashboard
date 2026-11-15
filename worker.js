@@ -258,9 +258,32 @@ async function authorizedInstagramTokens(request,env) {
   if(tokens.expiry_date&&tokens.expiry_date<=Date.now()) throw new Error("Le jeton Meta a expiré. Reconnecte ton compte Instagram.");
   return {account,tokens};
 }
-function metricTotal(data,name) {
-  const metric=data.find(item=>item.name===name);
-  return (metric?.values||[]).reduce((sum,item)=>sum+(Number(item.value)>0?Number(item.value):0),0);
+function metricValue(metric) {
+  if (!metric) return null;
+  const total=metric.total_value?.value;
+  if (total!==undefined && total!==null && Number.isFinite(Number(total))) return Number(total);
+  if (Array.isArray(metric.values)) {
+    const values=metric.values.map(x=>x?.value).filter(x=>x!==undefined&&x!==null&&Number.isFinite(Number(x))).map(Number);
+    return values.length?values.reduce((a,b)=>a+b,0):null;
+  }
+  if (metric.value!==undefined && metric.value!==null && Number.isFinite(Number(metric.value))) return Number(metric.value);
+  return null;
+}
+function metricTotal(data,name) { return metricValue((data||[]).find(x=>x.name===name)); }
+async function fetchInstagramMetrics(id,token,metrics,since,until) {
+  try {
+    const result=await metaGraph(id+"/insights",token,{metric:metrics.join(","),period:"total_over_range",since:String(since),until:String(until)});
+    return {data:result.data||[],errors:[]};
+  } catch {
+    const data=[],errors=[];
+    for(const metric of metrics) {
+      try {
+        const result=await metaGraph(id+"/insights",token,{metric,period:"total_over_range",since:String(since),until:String(until)});
+        data.push(...(result.data||[]));
+      } catch(error) { errors.push({metric,message:error.message}); }
+    }
+    return {data,errors};
+  }
 }
 async function instagramDashboard(request,env) {
   try {
@@ -270,27 +293,37 @@ async function instagramDashboard(request,env) {
     const days=Math.min(90,Math.max(1,Number.parseInt(url.searchParams.get("days")||"30",10)||30));
     const end=new Date(),start=new Date(end.getTime()-(days-1)*86400000),since=Math.floor(start.getTime()/1000),until=Math.floor(end.getTime()/1000);
     const profile=await metaGraph(account.platform_user_id,tokens.access_token,{fields:"id,username,profile_picture_url,followers_count,media_count"});
-    let insightData=[],analyticsWarning=null;
+    const names=["views","reach","total_interactions","accounts_engaged","likes","comments","shares","saves","replies","reposts","follows_and_unfollows","profile_links_taps","profile_views","website_clicks"];
+    const result=await fetchInstagramMetrics(account.platform_user_id,tokens.access_token,names,since,until);
+    const m={}; for(const name of names) m[name]=metricTotal(result.data,name);
+    let warning=null;
+    if(result.errors.length) warning=names.some(name=>m[name]!==null)
+      ?"Certaines statistiques ne sont pas proposées par Meta pour ce compte ou cette période. Les autres données disponibles sont affichées."
+      :"Meta n'a pas retourné les statistiques détaillées pour cette période. Vérifie les autorisations et l'éligibilité du compte.";
+    let daily=[];
     try {
-      const insights=await metaGraph(account.platform_user_id+"/insights",tokens.access_token,{metric:"views,reach,total_interactions,accounts_engaged",period:"day",since:String(since),until:String(until)});
-      insightData=insights.data||[];
-    } catch(e) { analyticsWarning="Le profil est connecté, mais certaines statistiques ne sont pas accessibles : "+e.message; }
+      const r=await metaGraph(account.platform_user_id+"/insights",tokens.access_token,{metric:"views",period:"day",since:String(since),until:String(until)});
+      const metric=(r.data||[]).find(x=>x.name==="views");
+      daily=(metric?.values||[]).map(x=>({date:x.end_time?.slice(0,10)||"",views:Number(x.value||0)})).filter(x=>x.date);
+    } catch(error) { if(!warning) warning="L'historique quotidien n'est pas disponible : "+error.message; }
     let media=[];
     try {
-      const result=await metaGraph(account.platform_user_id+"/media",tokens.access_token,{fields:"id,caption,media_type,media_product_type,timestamp,permalink,like_count,comments_count,thumbnail_url,media_url",limit:"25"});
-      media=await Promise.all((result.data||[]).map(async item=>{
+      const r=await metaGraph(account.platform_user_id+"/media",tokens.access_token,{fields:"id,caption,media_type,media_product_type,timestamp,permalink,like_count,comments_count,thumbnail_url,media_url",limit:"25"});
+      media=await Promise.all((r.data||[]).map(async item=>{
         let metrics={};
         try {
-          const r=await metaGraph(item.id+"/insights",tokens.access_token,{metric:"views,reach,saved,shares,total_interactions"});
-          for(const m of r.data||[]) { const v=m.values?.[0]?.value??m.value; if(v!=null) metrics[m.name]=Number(v); }
+          const x=await metaGraph(item.id+"/insights",tokens.access_token,{metric:"views,reach,saved,shares,total_interactions"});
+          for(const metric of x.data||[]) { const value=metricValue(metric); if(value!==null) metrics[metric.name]=value; }
         } catch {}
-        const likes=Number(item.like_count||0),comments=Number(item.comments_count||0),views=metrics.views??metrics.reach??0,interactions=metrics.total_interactions??likes+comments;
-        return {id:item.id,title:(item.caption||"Publication Instagram").slice(0,120),type:item.media_product_type==="REELS"?"Reel":item.media_type==="VIDEO"?"Vidéo":item.media_type==="CAROUSEL_ALBUM"?"Carrousel":"Publication",date:item.timestamp?item.timestamp.slice(0,10):"",views,likes,comments,engagement:views?interactions/views*100:0,url:item.permalink||null,thumbnail:item.thumbnail_url||item.media_url||null};
+        const likes=Number(item.like_count||0),comments=Number(item.comments_count||0),views=metrics.views??metrics.reach??0;
+        const interactions=metrics.total_interactions??likes+comments;
+        return {id:item.id,title:(item.caption||"Publication Instagram").slice(0,120),type:item.media_product_type==="REELS"?"Reel":item.media_type==="VIDEO"?"Vidéo":item.media_type==="CAROUSEL_ALBUM"?"Carrousel":"Publication",date:item.timestamp?item.timestamp.slice(0,10):"",views,likes,comments,shares:metrics.shares??null,saves:metrics.saved??null,reach:metrics.reach??null,interactions,engagement:views?interactions/views*100:0,url:item.permalink||null,thumbnail:item.thumbnail_url||item.media_url||null};
       }));
-    } catch(e) { analyticsWarning=analyticsWarning||"Les publications Instagram ne sont pas accessibles : "+e.message; }
-    const viewsMetric=insightData.find(item=>item.name==="views");
-    const daily=(viewsMetric?.values||[]).map(item=>({date:item.end_time?.slice(0,10)||"",views:Number(item.value||0)})).filter(item=>item.date);
-    return json({ok:true,source:"instagram",syncedAt:new Date().toISOString(),period:{days},account:{id:profile.id,username:profile.username||account.display_name,avatar:profile.profile_picture_url||account.avatar_url,followers:Number(profile.followers_count||0),mediaCount:Number(profile.media_count||media.length)},analytics:{views:metricTotal(insightData,"views"),reach:metricTotal(insightData,"reach"),interactions:metricTotal(insightData,"total_interactions"),accountsEngaged:metricTotal(insightData,"accounts_engaged")},analyticsWarning,daily,media});
+    } catch(error) { if(!warning) warning="Les statistiques du compte sont disponibles, mais les publications ne sont pas accessibles : "+error.message; }
+    return json({ok:true,source:"instagram",syncedAt:new Date().toISOString(),period:{days},
+      account:{id:profile.id,username:profile.username||account.display_name,avatar:profile.profile_picture_url||account.avatar_url,followers:Number(profile.followers_count||0),mediaCount:Number(profile.media_count||media.length)},
+      analytics:{views:m.views,reach:m.reach,interactions:m.total_interactions,accountsEngaged:m.accounts_engaged,likes:m.likes,comments:m.comments,shares:m.shares,saves:m.saves,replies:m.replies,reposts:m.reposts,followsAndUnfollows:m.follows_and_unfollows,profileLinksTaps:m.profile_links_taps,profileViews:m.profile_views,websiteClicks:m.website_clicks},
+      analyticsWarning:warning,unavailableMetrics:result.errors.map(x=>x.metric),daily,media});
   } catch(e) { return json({error:"Impossible de récupérer les statistiques Instagram : "+e.message},500); }
 }
 
