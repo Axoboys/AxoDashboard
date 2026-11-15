@@ -44,3 +44,36 @@ body.light-mode .more:hover{background:#ded9e9;color:#51456d}
 
 /* Instagram detailed insights */
 .instagram-insights-panel{margin-bottom:15px}.instagram-metric-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.instagram-metric{min-width:0;padding:14px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(145deg,#171326,#100e1a)}.instagram-metric span{display:block;color:#9992a9;font-size:8px;font-weight:700;letter-spacing:.8px;line-height:1.5;min-height:24px}.instagram-metric b{display:block;font:600 22px 'Space Grotesk';margin:8px 0 4px;color:var(--text)}.instagram-metric small{display:block;color:var(--muted);font-size:9px;line-height:1.45}@media(max-width:1150px){.instagram-metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:560px){.instagram-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.instagram-metric{padding:11px}.instagram-metric b{font-size:19px}}
+
+/* Dynamic accent palette, shared across dark and light themes */
+:root{--accent:#9a78ff;--accent-strong:#7652e8;--accent-soft:#9a78ff20;--accent-border:#9a78ff55;--purple:var(--accent);--purple2:var(--accent-strong)}
+.primary-button{background:linear-gradient(135deg,var(--accent),var(--accent-strong));border-color:var(--accent-strong);color:#fff}
+.nav-link.active{background:var(--accent-soft);color:var(--accent)}
+.nav-link.active>span:first-child{color:var(--accent)}
+.settings-tab.active{background:var(--accent-soft);color:var(--accent)}
+.switch input:checked+span{background:var(--accent-strong)}
+.chart-platform-switch{display:flex;gap:7px;flex-wrap:wrap;margin:-3px 0 15px}
+.chart-platform-btn{border:1px solid var(--border);background:var(--panel2);color:var(--muted);border-radius:8px;padding:7px 12px;font-size:10px;font-weight:700;transition:.2s}
+.chart-platform-btn:hover{border-color:var(--accent-border);color:var(--text)}
+.chart-platform-btn.active{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent)}
+.line-path{stroke:var(--accent)}
+.area-path{fill:color-mix(in srgb,var(--accent) 18%,transparent)}
+.legend-dot.violet{background:var(--accent)}
+.progress-track span,.compare-track i{background:linear-gradient(90deg,var(--accent-strong),var(--accent))}
+.goal-icon,.modal-icon,.insight-icon.purple{background:var(--accent-soft);color:var(--accent)}
+.goal-message b,.goal-meta b,.insight-card .insight-metric{color:var(--accent)}
+.outline-button{border-color:var(--accent-border);color:var(--accent)}
+.outline-button:hover{background:var(--accent-soft)}
+.subtle-button{color:var(--accent)}
+.status-pill{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-border)}
+.settings-content .text-input:focus,.text-input:focus,.search-box:focus-within{border-color:var(--accent)}
+.accent-select{min-width:145px}
+.accent-preview-note{font-size:9px;color:var(--muted);margin:4px 0 0}
+.brand-mark{box-shadow:0 5px 22px color-mix(in srgb,var(--accent) 28%,transparent)}
+body.light-mode .chart-platform-btn{background:var(--panel)}
+body.light-mode .chart-platform-btn.active{background:var(--accent-soft);color:var(--accent-strong)}
+body.light-mode .primary-button{color:#fff}
+body.light-mode .nav-link.active{color:var(--accent-strong);background:var(--accent-soft)}
+body.light-mode .settings-tab.active{color:var(--accent-strong)}
+body.light-mode .status-pill{color:var(--accent-strong)}
+@media(max-width:560px){.chart-platform-switch{gap:5px}.chart-platform-btn{flex:1;padding:8px 6px;font-size:9px}.accent-setting{align-items:flex-start;flex-direction:column}.accent-select{width:100%}}
