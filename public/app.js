@@ -259,6 +259,54 @@ async function loadYoutube() {
     renderInsights(days);
   }
 }
+
+async function loadInstagram() {
+  const days=document.getElementById("dateRange")?.value||"30";
+  const statusLine=document.getElementById("instagramDataStatus");
+  try {
+    const response=await fetch("/api/instagram/dashboard?days="+encodeURIComponent(days),{credentials:"same-origin",cache:"no-store"});
+    const data=await response.json();
+    if(!response.ok) throw new Error(data.error||"Erreur de synchronisation Instagram.");
+    platformData.instagram={
+      connected:true,
+      subscribers:Number(data.account?.followers||0),
+      views:Number(data.analytics?.views||0),
+      likes:Number(data.analytics?.interactions||0),
+      videos:Number(data.account?.mediaCount||0),
+      title:data.account?.username||"Compte Instagram",
+      items:(data.media||[]).map(item=>({
+        title:item.title||"Publication Instagram",platform:"Instagram",type:item.type||"Publication",date:item.date||"",
+        views:Number(item.views||0),likes:Number(item.likes||0),comments:Number(item.comments||0),
+        engagement:Number(item.engagement||0),url:item.url||null,thumbnail:item.thumbnail||null
+      }))
+    };
+    const status=document.getElementById("instagramStatus"),button=document.getElementById("connectInstagram");
+    if(status){status.textContent="Connecté";status.classList.add("connected")}
+    if(button){button.textContent="Compte connecté";button.disabled=true}
+    const cards=document.querySelectorAll("#page-instagram .compact-stats .stat-card");
+    const values=[fmt(platformData.instagram.subscribers),fmt(platformData.instagram.views),fmt(platformData.instagram.likes),fmt(data.analytics?.reach||0)];
+    const captions=["abonnés actuels","vues sur "+days+" jours","interactions sur "+days+" jours","portée cumulée sur "+days+" jours"];
+    cards.forEach((card,i)=>{
+      const value=card.querySelector(".stat-value"),foot=card.querySelector(".stat-bottom");
+      if(value)value.textContent=values[i];
+      if(foot)foot.innerHTML='<span class="trend positive">Données réelles</span><span>'+captions[i]+"</span>";
+    });
+    const note=document.querySelector("#page-instagram .platform-note p");
+    if(note)note.textContent=data.analyticsWarning||("Compte connecté : @"+(data.account?.username||"Instagram")+". "+(data.account?.mediaCount||0)+" publications au total. Synchronisé le "+new Date(data.syncedAt).toLocaleString("fr-BE")+".");
+    const noteTitle=document.querySelector("#page-instagram .platform-note b");
+    if(noteTitle)noteTitle.textContent="Compte Instagram connecté";
+    if(statusLine)statusLine.textContent=data.analyticsWarning||"Statistiques actualisées.";
+    updateOverview(days);renderInsights(days);renderTables();
+  } catch(error) {
+    if(statusLine)statusLine.textContent=error.message;
+    if(!error.message.includes("Session Instagram")&&!error.message.includes("Connecte ton compte Instagram")) {
+      const note=document.querySelector("#page-instagram .platform-note p");
+      if(note)note.textContent=error.message;
+    }
+    updateOverview(days);renderInsights(days);
+  }
+}
+
 function renderAllVideos() {
   let list=currentVideos(),q=(document.querySelector("#videoSearch")?.value||"").toLowerCase();
   const p=document.querySelector("#platformFilter")?.value||"all",s=document.querySelector("#sortFilter")?.value||"views";
@@ -287,7 +335,7 @@ document.getElementById("mobileMenu").addEventListener("click",()=>document.getE
 document.querySelector("#videoSearch").addEventListener("input",renderAllVideos);
 document.querySelector("#platformFilter").addEventListener("change",renderAllVideos);
 document.querySelector("#sortFilter").addEventListener("change",renderAllVideos);
-document.getElementById("dateRange").addEventListener("change",e=>loadYoutube());
+document.getElementById("dateRange").addEventListener("change",e=>{loadYoutube();loadInstagram();});
 function exportCSV() {
   const header=["Titre","Plateforme","Type","Date","Vues","Likes","Commentaires","Engagement (%)"];
   const lines=currentVideos().map(v=>[v.title,v.platform,v.type,v.date,v.views,v.likes,v.comments,v.engagement].map(x=>'"'+String(x).replaceAll('"','""')+'"').join(";"));
@@ -351,13 +399,23 @@ setPlatformPageStats("instagram",["0","0","0","0"],["abonnés","vues sur 30 jour
 if(localStorage.getItem("axo-light")==="true")setTheme(true);
 const youtubeConnectButton=document.getElementById("connectYoutube");
 if(youtubeConnectButton)youtubeConnectButton.addEventListener("click",()=>window.location.assign("/api/auth/youtube/connect"));
+const instagramConnectButton=document.getElementById("connectInstagram");
+if(instagramConnectButton)instagramConnectButton.addEventListener("click",()=>window.location.assign("/api/auth/instagram/connect"));
 const query=new URLSearchParams(window.location.search);
+if(query.get("instagram_connected")==="1") {
+  const status=document.getElementById("instagramStatus");
+  if(status){status.textContent="Connecté";status.classList.add("connected")}
+  const button=document.getElementById("connectInstagram");
+  if(button){button.textContent="Compte connecté";button.disabled=true}
+  toast("Compte Instagram connecté : @"+(query.get("username")||"Instagram"));
+}
 if(query.get("youtube_connected")==="1") {
   const status=document.getElementById("youtubeStatus");
   if(status){status.textContent="Connecté";status.classList.add("connected")}
   const button=document.getElementById("connectYoutube");
   if(button){button.textContent="Compte connecté";button.disabled=true}
   toast("Chaîne YouTube connectée : "+(query.get("channel")||"YouTube"));
-  history.replaceState({},"",window.location.pathname);
 }
+if(query.has("youtube_connected")||query.has("instagram_connected"))history.replaceState({},"",window.location.pathname);
 loadYoutube();
+loadInstagram();
