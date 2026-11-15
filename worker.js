@@ -271,14 +271,15 @@ function metricValue(metric) {
 }
 function metricTotal(data,name) { return metricValue((data||[]).find(x=>x.name===name)); }
 async function fetchInstagramMetrics(id,token,metrics,since,until) {
+  const params={period:"day",metric_type:"total_value",since:String(since),until:String(until)};
   try {
-    const result=await metaGraph(id+"/insights",token,{metric:metrics.join(","),period:"total_over_range",since:String(since),until:String(until)});
+    const result=await metaGraph(id+"/insights",token,{...params,metric:metrics.join(",")});
     return {data:result.data||[],errors:[]};
   } catch {
     const data=[],errors=[];
     for(const metric of metrics) {
       try {
-        const result=await metaGraph(id+"/insights",token,{metric,period:"total_over_range",since:String(since),until:String(until)});
+        const result=await metaGraph(id+"/insights",token,{...params,metric});
         data.push(...(result.data||[]));
       } catch(error) { errors.push({metric,message:error.message}); }
     }
@@ -297,9 +298,12 @@ async function instagramDashboard(request,env) {
     const result=await fetchInstagramMetrics(account.platform_user_id,tokens.access_token,names,since,until);
     const m={}; for(const name of names) m[name]=metricTotal(result.data,name);
     let warning=null;
-    if(result.errors.length) warning=names.some(name=>m[name]!==null)
-      ?"Certaines statistiques ne sont pas proposées par Meta pour ce compte ou cette période. Les autres données disponibles sont affichées."
-      :"Meta n'a pas retourné les statistiques détaillées pour cette période. Vérifie les autorisations et l'éligibilité du compte.";
+    if(result.errors.length) {
+      const firstError=result.errors[0]?.message||"Erreur inconnue";
+      warning=names.some(name=>m[name]!==null)
+        ?"Certaines statistiques ne sont pas proposées par Meta. Détail : "+firstError
+        :"Meta a refusé les statistiques du compte. Détail : "+firstError;
+    }
     let daily=[];
     try {
       const r=await metaGraph(account.platform_user_id+"/insights",tokens.access_token,{metric:"views",period:"day",since:String(since),until:String(until)});
