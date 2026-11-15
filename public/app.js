@@ -5,6 +5,46 @@ const platformData = {
 };
 let youtubeData = null;
 let youtubeVideos = [];
+const GOALS_STORAGE_KEY = "axo-analytics-goals-v1";
+function readGoals() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(GOALS_STORAGE_KEY) || "{}");
+    return {
+      subscribers: Number.isSafeInteger(saved.subscribers) && saved.subscribers > 0 ? saved.subscribers : null,
+      views: Number.isSafeInteger(saved.views) && saved.views > 0 ? saved.views : null
+    };
+  } catch { return { subscribers: null, views: null }; }
+}
+let creatorGoals = readGoals();
+function renderGoal(type, current, target) {
+  const prefix = type === "subscribers" ? "subGoal" : "viewsGoal";
+  const set = (suffix, value) => { const el=document.getElementById(prefix+suffix); if(el) el.textContent=value; };
+  const bar=document.getElementById(prefix+"Progress");
+  const status=document.getElementById(prefix+"Status");
+  const message=document.getElementById(prefix+"Message");
+  set("Current", current == null ? "Masqué" : fmt(current));
+  set("Target", target ? fmt(target) : "objectif à définir");
+  const percent = target && current != null ? Math.min(100, current / target * 100) : 0;
+  if(bar) bar.style.width=percent.toFixed(2)+"%";
+  set("Percent", target && current != null ? Math.floor(percent)+" %" : "—");
+  if(status) status.textContent=!target ? "À définir" : current == null ? "Données masquées" : current>=target ? "Objectif atteint" : "En cours";
+  set("Remaining", !target ? "Définis ton prochain palier" : current == null ? "Donnée indisponible" : current>=target ? "Palier atteint !" : fmt(target-current)+" restant"+(target-current>1?"s":""));
+  if(message) message.textContent=!target ? "Ajoute un objectif pour suivre ta progression." : current == null ? "La plateforme masque cette statistique, le calcul ne peut pas être effectué." : current>=target ? "Bravo ! Tu as atteint cet objectif. Tu peux définir un nouveau palier quand tu le souhaites." : "Tu as atteint "+Math.floor(percent)+" % de ton objectif.";
+}
+function renderGoals() {
+  const platforms=Object.values(platformData);
+  const subscribersKnown=platforms.every(p=>p.subscribers!==null);
+  const subscribers=subscribersKnown ? platforms.reduce((sum,p)=>sum+(Number(p.subscribers)||0),0) : null;
+  const views=platforms.reduce((sum,p)=>sum+(Number(p.views)||0),0);
+  renderGoal("subscribers",subscribers,creatorGoals.subscribers);
+  renderGoal("views",views,creatorGoals.views);
+}
+function openGoalEditor() {
+  document.getElementById("goalSubscribersInput").value=creatorGoals.subscribers ?? "";
+  document.getElementById("goalViewsInput").value=creatorGoals.views ?? "";
+  document.getElementById("modal").classList.add("show");
+}
+
 
 const escapeHTML = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 const fmt = n => {
@@ -79,7 +119,7 @@ function updateOverview(days) {
   connection("overviewYoutubeConnection","overviewYoutubeBadge","youtube");
   connection("overviewTiktokConnection","overviewTiktokBadge","tiktok");
   connection("overviewInstagramConnection","overviewInstagramBadge","instagram");
-  const live=document.querySelector(".live-status");
+  renderGoals();\n  const live=document.querySelector(".live-status");
   if(live) live.innerHTML='<span class="pulse"></span>'+(platforms.some(p=>p.connected)?"DONNÉES RÉELLES":"EN ATTENTE DE CONNEXION");
 }
 function setPlatformPageStats(platform, values, captions) {
@@ -189,7 +229,22 @@ function showModal(title,text){document.getElementById("modalTitle").textContent
 document.getElementById("modalClose").onclick=()=>modal.classList.remove("show");
 document.getElementById("modalOk").onclick=()=>modal.classList.remove("show");
 modal.addEventListener("click",e=>{if(e.target===modal)modal.classList.remove("show")});
-document.getElementById("addGoal").onclick=()=>showModal("Objectifs personnalisés","La création et le suivi des objectifs personnalisés seront ajoutés dans une prochaine version.");
+document.getElementById("addGoal").onclick=openGoalEditor;
+document.getElementById("goalCancel").onclick=()=>modal.classList.remove("show");
+document.getElementById("goalForm").addEventListener("submit",e=>{
+  e.preventDefault();
+  const subscribersRaw=document.getElementById("goalSubscribersInput").value.trim();
+  const viewsRaw=document.getElementById("goalViewsInput").value.trim();
+  const subscribers=subscribersRaw ? Number(subscribersRaw) : null;
+  const views=viewsRaw ? Number(viewsRaw) : null;
+  if((subscribersRaw && (!Number.isSafeInteger(subscribers)||subscribers<1)) || (viewsRaw && (!Number.isSafeInteger(views)||views<1))) {
+    toast("Entre des objectifs entiers supérieurs à zéro.");return;
+  }
+  if(!subscribers && !views){toast("Définis au moins un objectif.");return;}
+  creatorGoals={subscribers,views};
+  localStorage.setItem(GOALS_STORAGE_KEY,JSON.stringify(creatorGoals));
+  modal.classList.remove("show");renderGoals();toast("Objectifs enregistrés !");
+});
 document.querySelectorAll(".settings-tab").forEach(btn=>btn.addEventListener("click",()=>{
   document.querySelectorAll(".settings-tab").forEach(x=>x.classList.remove("active"));
   document.querySelectorAll(".settings-section").forEach(x=>x.classList.remove("active"));
