@@ -437,7 +437,7 @@ document.getElementById("saveProfile").onclick=()=>{
   if(name){document.querySelector(".profile b").textContent=name;toast("Profil enregistré localement")}else toast("Entre un nom valide");
 };
 document.getElementById("resetDemo").onclick=()=>{
-  localStorage.removeItem("axo-light");localStorage.removeItem("axo-accent");setTheme(false);applyAccent("violet",false);document.body.classList.remove("no-motion");
+  localStorage.removeItem("axo-light");localStorage.removeItem("axo-accent");localStorage.removeItem("axo-chart-platform");selectedChartPlatform="youtube";setTheme(false);applyAccent("violet",false);renderSelectedChart();document.body.classList.remove("no-motion");
   document.getElementById("motionSwitch").checked=true;toast("Préférences réinitialisées");
 };
 const currentDateLabel=document.getElementById("currentDateLabel");
