@@ -228,12 +228,12 @@ async function instagramCallback(request,env) {
     const tokenResponse=await metaFetch(tokenUrl.toString());
     const accessToken=tokenResponse.access_token||tokenResponse.data?.[0]?.access_token;
     if(!accessToken) throw new Error("Meta n'a pas retourné de jeton d'accès utilisable.");
-    const pages=await metaGraph("me/accounts",accessToken,{fields:"id,name,access_token,instagram_business_account{id,username,profile_picture_url}",limit:"100"});
-    const page=(pages.data||[]).find(item=>item.instagram_business_account?.id);
-    const ig=page?.instagram_business_account;
-    if(!page||!ig?.id||!page.access_token) throw new Error("Aucun compte Instagram Créateur relié à une Page Facebook accessible. Vérifie le lien Page/Instagram et les autorisations pages_show_list et pages_read_engagement dans ta configuration Meta.");
-    const pageAccessToken=page.access_token;
-    const tokens={access_token:pageAccessToken,token_type:"bearer",expiry_date:null};
+    // Unified Login (SUAT) grants Instagram assets directly; it does not use the Pages /me/accounts flow.
+    const assigned=await metaGraph("me/assigned_instagram_accounts",accessToken,{fields:"id,username,profile_picture_url,followers_count,media_count"});
+    const ig=(assigned.data||[])[0];
+    if(!ig?.id) throw new Error("Meta n'a associé aucun compte Instagram à cette connexion. Recommence et sélectionne ton compte Instagram Créateur dans le portefeuille professionnel, puis autorise son accès à AXO ANALYTICS.");
+    // Keep the Unified Login system-user token. Do not replace it with a Page access token.
+    const tokens={access_token:accessToken,token_type:"bearer",expiry_date:null};
     const encrypted=await encryptToken(tokens,env.TOKEN_ENCRYPTION_KEY),username=ig.username||"Compte Instagram";
     await env.DB.prepare("INSERT INTO social_accounts (platform, platform_user_id, display_name, avatar_url, token_ciphertext, scopes, updated_at) VALUES ('instagram', ?, ?, ?, ?, ?, datetime('now')) ON CONFLICT(platform, platform_user_id) DO UPDATE SET display_name=excluded.display_name, avatar_url=excluded.avatar_url, token_ciphertext=excluded.token_ciphertext, scopes=excluded.scopes, updated_at=datetime('now')").bind(ig.id,username,ig.profile_picture_url||null,encrypted,"instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement").run();
     const account=await env.DB.prepare("SELECT id FROM social_accounts WHERE platform='instagram' AND platform_user_id=?").bind(ig.id).first();
