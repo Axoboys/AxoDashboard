@@ -126,24 +126,23 @@ function updateOverview(days) {
   if(live) live.innerHTML='<span class="pulse"></span>'+(platforms.some(p=>p.connected)?"DONNÉES RÉELLES":"EN ATTENTE DE CONNEXION");
 }
 function renderInsights(days) {
-  const a=youtubeData?.analytics||{};
-  const views=Number(a.views||0), likes=Number(a.likes||0), comments=Number(a.comments||0);
-  const interactions=likes+comments;
-  const engagement=views>0 ? interactions/views*100 : null;
-  const netSubs=Number(a.subscribersGained||0)-Number(a.subscribersLost||0);
+  const analytics=youtubeData?.analytics;
+  const connected=Boolean(youtubeData);
+  const views=analytics && Number.isFinite(Number(analytics.views)) ? Number(analytics.views) : null;
+  const likes=analytics && Number.isFinite(Number(analytics.likes)) ? Number(analytics.likes) : null;
+  const comments=analytics && Number.isFinite(Number(analytics.comments)) ? Number(analytics.comments) : null;
+  const gained=analytics && Number.isFinite(Number(analytics.subscribersGained)) ? Number(analytics.subscribersGained) : null;
+  const lost=analytics && Number.isFinite(Number(analytics.subscribersLost)) ? Number(analytics.subscribersLost) : null;
+  const netSubs=gained!==null&&lost!==null ? gained-lost : null;
+  const engagement=views!==null&&views>0&&likes!==null&&comments!==null ? (likes+comments)/views*100 : null;
   const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};
   set("insightPeriodLabel",days+" derniers jours");
-  set("insightViewsMetric",fmt(views)+" vues");
-  set("insightSubsMetric",youtubeData ? (netSubs>0?"+":"")+fmt(netSubs)+" abonnés" : "— non disponible");
+  set("insightViewsMetric",views===null?"—":fmt(views)+" vues");
+  set("insightViewsDescription",connected?"Vues YouTube sur les "+days+" derniers jours.":"Connecte YouTube pour obtenir cette mesure.");
+  set("insightSubsMetric",netSubs===null?"—":(netSubs>0?"+":"")+fmt(netSubs)+" abonnés");
+  set("insightSubsDescription",netSubs===null?"Les données d'abonnés gagnés/perdus ne sont pas disponibles pour cette période.":"Gagnés : "+fmt(gained)+" · Perdus : "+fmt(lost)+".");
   set("insightEngagementMetric",engagement===null?"—":engagement.toFixed(2).replace(".",",")+" %");
-  set("insightLikes",fmt(likes));set("insightComments",fmt(comments));
-  set("insightWatchTime",fmt(Math.round(Number(a.estimatedMinutesWatched||0)/60))+" h");
-  set("insightDailyAverage",fmt(Math.round(views/Math.max(1,Number(days)||30))));
-  set("insightViewsDescription",youtubeData?"Vues YouTube sur les "+days+" derniers jours.":"Connecte YouTube pour obtenir cette mesure.");
-  set("insightSubsDescription",youtubeData?"Gagnés ("+fmt(a.subscribersGained||0)+") moins perdus ("+fmt(a.subscribersLost||0)+") sur la période.":"Cette mesure sera disponible après connexion.");
-  set("insightEngagementDescription",views>0?fmt(interactions)+" likes et commentaires pour "+fmt(views)+" vues.":"Le taux sera calculé dès que des vues seront disponibles.");
-  const summary=!youtubeData?"Connecte YouTube pour générer une analyse basée sur tes statistiques réelles.":views===0?"Aucune vue n'a été remontée pour cette période. Essaie une autre période ou vérifie les autorisations Analytics.":"Sur les "+days+" derniers jours, ta chaîne a obtenu "+fmt(views)+" vues et "+fmt(interactions)+" interactions ("+(engagement===null?"taux indisponible":engagement.toFixed(2).replace(".",",")+" % d'engagement") +"). La moyenne est de "+fmt(Math.round(views/Math.max(1,Number(days)||30)))+" vues par jour.";
-  set("insightSummary",summary);
+  set("insightEngagementDescription",engagement===null?"Impossible de calculer le taux sans vues et interactions disponibles.":fmt(likes+comments)+" likes et commentaires pour "+fmt(views)+" vues.");
   const values={youtube:platformData.youtube.views||0,tiktok:platformData.tiktok.views||0,instagram:platformData.instagram.views||0};
   const max=Math.max(1,...Object.values(values));
   for(const [key,value] of Object.entries(values)){
