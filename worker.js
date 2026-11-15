@@ -153,6 +153,15 @@ async function youtubeDashboard(request,env) {
       const values=report.rows?.[0]||[];
       ["views","likes","comments","estimatedMinutesWatched","subscribersGained","subscribersLost"].forEach((k,i)=>analytics[k]=Number(values[i]||0));
     } catch(e) { analyticsWarning="Les statistiques détaillées de la période ne sont pas accessibles : "+e.message; }
+    let daily=[];
+    try {
+      const dailyUrl=new URL("https://youtubeanalytics.googleapis.com/v2/reports");
+      dailyUrl.search=new URLSearchParams({ids:"channel==MINE",startDate,endDate,metrics:"views",dimensions:"day",sort:"day"});
+      const dailyReport=await googleFetch(dailyUrl.toString(),{headers});
+      daily=(dailyReport.rows||[]).map(row=>({date:String(row[0]),views:Number(row[1]||0)}));
+    } catch(e) {
+      analyticsWarning=analyticsWarning||"L'historique quotidien n'est pas accessible : "+e.message;
+    }
     const playlistId=channel.contentDetails?.relatedPlaylists?.uploads;
     let videoItems=[];
     if (playlistId) {
@@ -175,7 +184,7 @@ async function youtubeDashboard(request,env) {
     return json({
       ok:true,source:"youtube",syncedAt:new Date().toISOString(),period:{days,startDate,endDate},
       channel:{id:channel.id,title:channel.snippet?.title||account.display_name,avatar:channel.snippet?.thumbnails?.default?.url||account.avatar_url,subscribers:channel.statistics?.hiddenSubscriberCount?null:Number(channel.statistics?.subscriberCount||0),totalViews:Number(channel.statistics?.viewCount||0),videoCount:Number(channel.statistics?.videoCount||0)},
-      analytics,analyticsWarning,videos
+      analytics,analyticsWarning,daily,videos
     });
   } catch(e) { return json({error:"Impossible de récupérer les statistiques YouTube : "+e.message},500); }
 }
