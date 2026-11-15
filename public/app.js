@@ -324,9 +324,14 @@ document.querySelectorAll(".settings-tab").forEach(btn=>btn.addEventListener("cl
 }));
 function setTheme(light) {
   document.body.classList.toggle("light-mode",light);document.documentElement.classList.toggle("light",light);
-  document.getElementById("darkSwitch").checked=!light;localStorage.setItem("axo-light",String(light));
+  const darkSwitch=document.getElementById("darkSwitch");
+  if(darkSwitch) darkSwitch.checked=!light;
+  const themeToggle=document.getElementById("themeToggle");
+  if(themeToggle){themeToggle.textContent=light?"☾":"☼";themeToggle.title=light?"Passer au thème sombre":"Passer au thème clair";}
+  localStorage.setItem("axo-light",String(light));
 }
 document.getElementById("themeToggle").onclick=()=>setTheme(!document.body.classList.contains("light-mode"));
+setTheme(localStorage.getItem("axo-light")==="true");
 document.getElementById("darkSwitch").addEventListener("change",e=>setTheme(!e.target.checked));
 document.getElementById("motionSwitch").addEventListener("change",e=>document.body.classList.toggle("no-motion",!e.target.checked));
 document.getElementById("saveProfile").onclick=()=>{
