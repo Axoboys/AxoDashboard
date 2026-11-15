@@ -119,8 +119,35 @@ function updateOverview(days) {
   connection("overviewYoutubeConnection","overviewYoutubeBadge","youtube");
   connection("overviewTiktokConnection","overviewTiktokBadge","tiktok");
   connection("overviewInstagramConnection","overviewInstagramBadge","instagram");
-  renderGoals();\n  const live=document.querySelector(".live-status");
+  renderGoals();
+  renderChart(youtubeData?.daily||[]);
+  const live=document.querySelector(".live-status");
   if(live) live.innerHTML='<span class="pulse"></span>'+(platforms.some(p=>p.connected)?"DONNÉES RÉELLES":"EN ATTENTE DE CONNEXION");
+}
+function renderChart(daily) {
+  const svg=document.getElementById("mainChart");
+  if(!svg) return;
+  const rows=(daily||[]).filter(r=>Number.isFinite(Number(r.views)));
+  if(!rows.length) {
+    svg.innerHTML='<defs><linearGradient id="fillPurple" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#9c76ff" stop-opacity=".28"/><stop offset="1" stop-color="#9c76ff" stop-opacity="0"/></linearGradient></defs><g class="grid-lines"><path d="M0 10H700 M0 75H700 M0 140H700 M0 205H700"/></g>';
+    const labels=document.querySelector(".x-labels"); if(labels) labels.innerHTML="<span>Aucune donnée historique</span>";
+    const y=document.querySelector(".y-labels"); if(y) y.innerHTML="<span>—</span><span>—</span><span>—</span><span>0</span>";
+    return;
+  }
+  const vals=rows.map(r=>Math.max(0,Number(r.views)||0)), max=Math.max(1,...vals), min=Math.min(0,...vals);
+  const x=i=>rows.length===1?350:i*700/(rows.length-1);
+  const y=v=>205-(v-min)/(max-min||1)*185;
+  const points=vals.map((v,i)=>[x(i),y(v)]);
+  const line=points.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
+  const area=line+" L700 205 L0 205 Z";
+  svg.innerHTML='<defs><linearGradient id="fillPurple" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#9c76ff" stop-opacity=".28"/><stop offset="1" stop-color="#9c76ff" stop-opacity="0"/></linearGradient></defs><g class="grid-lines"><path d="M0 10H700 M0 75H700 M0 140H700 M0 205H700"/></g><path class="area-path" d="'+area+'"/><path class="line-path" d="'+line+'"/>';
+  const labels=document.querySelector(".x-labels");
+  if(labels) {
+    const indexes=[0,Math.floor((rows.length-1)/3),Math.floor(2*(rows.length-1)/3),rows.length-1].filter((v,i,a)=>a.indexOf(v)===i);
+    labels.innerHTML=indexes.map(i=>"<span>"+new Date(rows[i].date+"T12:00:00").toLocaleDateString("fr-BE",{day:"2-digit",month:"short"})+"</span>").join("");
+  }
+  const ylabels=document.querySelector(".y-labels");
+  if(ylabels) ylabels.innerHTML=[max,max*.66,max*.33,0].map(v=>"<span>"+fmt(Math.round(v))+"</span>").join("");
 }
 function setPlatformPageStats(platform, values, captions) {
   const cards=document.querySelectorAll("#page-"+platform+" .compact-stats .stat-card");
@@ -153,6 +180,7 @@ async function loadYoutube() {
     };
     youtubeVideos=platformData.youtube.items;
     updateOverview(days);
+    renderChart(data.daily||[]);
     const status=document.getElementById("youtubeStatus"),button=document.getElementById("connectYoutube");
     if(status){status.textContent="Connecté";status.classList.add("connected")}
     if(button){button.textContent="Compte connecté";button.disabled=true}
@@ -181,6 +209,7 @@ async function loadYoutube() {
     if(statusLine) statusLine.textContent=data.analyticsWarning||"Statistiques actualisées.";
     renderTables();
   } catch(error) {
+    renderChart([]);
     if(statusLine) statusLine.textContent=error.message;
     if(!error.message.includes("Session")&&!error.message.includes("Reconnecte")) toast(error.message);
     updateOverview(days);
@@ -225,9 +254,8 @@ function exportCSV() {
 document.getElementById("exportBtn").addEventListener("click",exportCSV);
 document.getElementById("videoExport").addEventListener("click",exportCSV);
 const modal=document.getElementById("modal");
-function showModal(title,text){document.getElementById("modalTitle").textContent=title;document.getElementById("modalText").textContent=text;modal.classList.add("show")}
 document.getElementById("modalClose").onclick=()=>modal.classList.remove("show");
-document.getElementById("modalOk").onclick=()=>modal.classList.remove("show");
+
 modal.addEventListener("click",e=>{if(e.target===modal)modal.classList.remove("show")});
 document.getElementById("addGoal").onclick=openGoalEditor;
 document.getElementById("goalCancel").onclick=()=>modal.classList.remove("show");
