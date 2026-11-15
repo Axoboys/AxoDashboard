@@ -29,3 +29,15 @@ const modal=document.getElementById('modal');function showModal(title,text){docu
 document.querySelectorAll('.settings-tab').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.settings-tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.settings-section').forEach(x=>x.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+btn.dataset.tab).classList.add('active')}));
 function setTheme(light){document.body.classList.toggle('light-mode',light);document.documentElement.classList.toggle('light',light);document.getElementById('darkSwitch').checked=!light;localStorage.setItem('axo-light',String(light))}document.getElementById('themeToggle').onclick=()=>setTheme(!document.body.classList.contains('light-mode'));document.getElementById('darkSwitch').addEventListener('change',e=>setTheme(!e.target.checked));document.getElementById('motionSwitch').addEventListener('change',e=>document.body.classList.toggle('no-motion',!e.target.checked));document.getElementById('saveProfile').onclick=()=>{const name=document.getElementById('profileName').value.trim();if(name){document.querySelector('.profile b').textContent=name;toast('Profil enregistré localement')}else toast('Entre un nom valide')};document.getElementById('resetDemo').onclick=()=>{localStorage.removeItem('axo-light');setTheme(false);document.body.classList.remove('no-motion');document.getElementById('motionSwitch').checked=true;toast('Préférences réinitialisées')};
 renderTables();if(localStorage.getItem('axo-light')==='true')setTheme(true);
+
+const youtubeConnectButton=document.getElementById('connectYoutube');
+if(youtubeConnectButton) youtubeConnectButton.addEventListener('click',()=>{window.location.assign('/api/auth/youtube/connect')});
+const query=new URLSearchParams(window.location.search);
+if(query.get('youtube_connected')==='1'){
+  const status=document.getElementById('youtubeStatus');
+  if(status){status.textContent='Connecté';status.classList.add('connected')}
+  const button=document.getElementById('connectYoutube');
+  if(button){button.textContent='Compte connecté';button.disabled=true}
+  toast('Chaîne YouTube connectée : '+(query.get('channel')||'YouTube'));
+  history.replaceState({},'',window.location.pathname);
+}
