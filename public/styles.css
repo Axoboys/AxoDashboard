@@ -5,3 +5,8 @@
 
 /* Advanced analytics */
 .insight-period{display:flex;align-items:center}.insight-breakdown-panel{margin-top:18px}.insight-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}.insight-detail-list{display:grid;gap:0}.insight-detail-list>div{display:flex;justify-content:space-between;align-items:center;padding:13px 2px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted)}.insight-detail-list>div:last-child{border:0}.insight-detail-list b{color:var(--text);font:600 13px 'Space Grotesk'}.insight-summary{font-size:12px;line-height:1.8;color:var(--muted);padding:5px 0 12px}.insight-grid .insight-card{min-height:220px}.insight-card .insight-metric{font:600 25px 'Space Grotesk';color:var(--text);margin-top:17px}.insight-metric small{font:400 10px 'DM Sans';color:var(--muted)}@media(max-width:850px){.insight-detail-grid{grid-template-columns:1fr}}
+
+/* AXO ANALYTICS brand icon and content types */
+.brand-mark{width:39px;height:39px;object-fit:cover;border-radius:11px;background:#0b0318;box-shadow:0 5px 22px #8055ec33;display:block;flex:none}
+.content-type{display:inline-flex;align-items:center;border-radius:6px;padding:4px 8px;font-size:9px;font-weight:700;background:#9a78ff1c;color:#bba5ff;border:1px solid #9a78ff35}
+.short-type{background:#ef7ab71c;color:#f19ac9;border-color:#ef7ab744}
