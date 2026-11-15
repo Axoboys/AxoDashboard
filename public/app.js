@@ -21,6 +21,18 @@ function row(v,full=false){return `<tr><td><div class="video-cell"><div class="v
 function currentVideos(){return [...videos.filter(v=>v.platform!=='YouTube'),...(youtubeData?youtubeVideos:videos.filter(v=>v.platform==='YouTube'))]}
 function renderTables(){const all=currentVideos();document.querySelector('#topVideos').innerHTML=[...all].sort((a,b)=>b.views-a.views).slice(0,4).map(v=>row(v)).join('');['YouTube','TikTok','Instagram'].forEach(p=>{const id=p.toLowerCase()+'Videos';const source=p==='YouTube'&&youtubeData?youtubeVideos:videos.filter(v=>v.platform===p);document.getElementById(id).innerHTML=source.map(v=>row(v)).join('')});renderAllVideos()}
 
+function updateYoutubeOverview(data,days){
+ const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value};
+ set('overviewYoutubeSubscribers',data.channel?.subscribers==null?'Masqué':fmt(data.channel.subscribers));
+ set('overviewYoutubeViews',fmt(data.analytics?.views||0));
+ set('overviewYoutubeLikes',fmt(data.analytics?.likes||0));
+ set('overviewYoutubeVideoCount',fmt(data.channel?.videoCount||0));
+ set('overviewYoutubeViewsPeriod','sur '+days+' jours');
+ set('overviewYoutubeLikesPeriod','sur '+days+' jours');
+ set('overviewYoutubeConnection','Connecté · '+(data.channel?.title||'Chaîne YouTube'));
+ set('overviewYoutubeBadge','Connecté');
+ set('overviewUpdated','◷ YouTube synchronisé · '+new Date(data.syncedAt).toLocaleString('fr-BE'));
+}
 async function loadYoutube(){
  const days=document.getElementById('dateRange')?.value||'30';
  const statusLine=document.getElementById('youtubeDataStatus');
@@ -29,6 +41,7 @@ async function loadYoutube(){
   const data=await response.json();
   if(!response.ok)throw new Error(data.error||'Erreur de synchronisation YouTube.');
   youtubeData=data;
+  updateYoutubeOverview(data,days);
   youtubeVideos=(data.videos||[]).map(v=>({title:v.title,platform:'YouTube',type:'Vidéo',date:v.date||'',views:v.views||0,likes:v.likes||0,comments:v.comments||0,engagement:v.views?((v.likes+v.comments)/v.views*100):0}));
   const status=document.getElementById('youtubeStatus'),button=document.getElementById('connectYoutube');
   if(status){status.textContent='Connecté';status.classList.add('connected')}
