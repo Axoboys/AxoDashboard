@@ -92,6 +92,7 @@ async function callback(request, env) {
   try {
     if (!env.GOOGLE_CLIENT_SECRET || !env.DB || !env.TOKEN_ENCRYPTION_KEY) throw new Error("Configuration Google, base D1 ou clé de chiffrement manquante.");
     const tokens = await googleFetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({code:url.searchParams.get("code"),client_id:env.GOOGLE_CLIENT_ID,client_secret:env.GOOGLE_CLIENT_SECRET,redirect_uri:env.GOOGLE_REDIRECT_URI,grant_type:"authorization_code"})});
+    tokens.expiry_date=Date.now()+(tokens.expires_in||3600)*1000;
     const channel = await googleFetch("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true",{headers:{Authorization:"Bearer "+tokens.access_token}});
     const item = channel.items?.[0];
     if (!item) throw new Error("Aucune chaîne YouTube n'a été trouvée sur ce compte Google.");
