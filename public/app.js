@@ -38,6 +38,19 @@ function renderGoals() {
   const views=platforms.reduce((sum,p)=>sum+(Number(p.views)||0),0);
   renderGoal("subscribers",subscribers,creatorGoals.subscribers);
   renderGoal("views",views,creatorGoals.views);
+  renderOverviewGoal(subscribers);
+}
+function renderOverviewGoal(current) {
+  const target=creatorGoals.subscribers;
+  const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};
+  const bar=document.getElementById("overviewGoalProgress");
+  const percent=target&&current!=null?Math.min(100,current/target*100):0;
+  set("overviewGoalCurrent",current==null?"Masqué":fmt(current));
+  set("overviewGoalTarget",target?fmt(target)+" abonnés":"objectif à définir");
+  set("overviewGoalPercent",target&&current!=null?Math.floor(percent)+" %":"—");
+  set("overviewGoalRemaining",!target?"Définis ton prochain palier":current==null?"Donnée indisponible":current>=target?"Palier atteint !":fmt(target-current)+" restant"+(target-current>1?"s":""));
+  set("overviewGoalMessage",!target?"Ajoute un objectif abonnés dans « Mes objectifs » pour suivre ta progression.":current==null?"Le nombre d'abonnés n'est pas disponible.":current>=target?"Bravo ! Ton objectif abonnés est atteint.":"Progression calculée à partir des abonnés de tes comptes connectés.");
+  if(bar)bar.style.width=percent.toFixed(2)+"%";
 }
 function openGoalEditor() {
   document.getElementById("goalSubscribersInput").value=creatorGoals.subscribers ?? "";
@@ -57,8 +70,9 @@ function currentVideos() {
 }
 function row(v, full=false) {
   const engagement = Number(v.engagement || 0).toFixed(1).replace(".",",");
+  const typeClass=v.type==="Short"?"content-type short-type":"content-type";
   return "<tr><td><div class=\"video-cell\"><div class=\"video-thumb\">"+(v.platform==="YouTube"?"▶":v.platform==="TikTok"?"♪":"◎")+"</div><div><b>"+escapeHTML(v.title)+"</b><small>"+escapeHTML(v.type || "Vidéo")+"</small></div></div></td>"+
-    (full ? "<td><span class=\"platform-tag\">"+escapeHTML(v.platform)+"</span></td><td>"+(v.date ? new Date(v.date+"T12:00:00").toLocaleDateString("fr-BE",{day:"2-digit",month:"short"}) : "—")+"</td>" : "<td><span class=\"platform-tag\">"+escapeHTML(v.platform)+"</span></td>")+
+    (full ? "<td><span class=\""+typeClass+"\">"+escapeHTML(v.type||"Vidéo")+"</span></td><td><span class=\"platform-tag\">"+escapeHTML(v.platform)+"</span></td><td>"+(v.date ? new Date(v.date+"T12:00:00").toLocaleDateString("fr-BE",{day:"2-digit",month:"short"}) : "—")+"</td>" : "<td><span class=\"platform-tag\">"+escapeHTML(v.platform)+"</span></td>")+
     "<td>"+fmt(v.views)+"</td><td>"+fmt(v.likes)+"</td>"+(full ? "<td>"+engagement+" %</td>" : "<td>"+Number(v.comments||0).toLocaleString("fr-BE")+"</td>")+"</tr>";
 }
 function renderTables() {
@@ -201,7 +215,7 @@ async function loadYoutube() {
       videos:Number(data.channel?.videoCount||0),
       title:data.channel?.title||"Chaîne YouTube",
       items:(data.videos||[]).map(v=>({
-        title:v.title,platform:"YouTube",type:"Vidéo",date:v.date||"",
+        title:v.title,platform:"YouTube",type:Number(v.durationSeconds)>0&&Number(v.durationSeconds)<=180?"Short":"Vidéo",date:v.date||"",
         views:Number(v.views||0),likes:Number(v.likes||0),comments:Number(v.comments||0),
         engagement:v.views?((Number(v.likes||0)+Number(v.comments||0))/Number(v.views)*100):0
       }))
@@ -251,7 +265,7 @@ function renderAllVideos() {
   list=list.filter(v=>v.title.toLowerCase().includes(q)&&(p==="all"||v.platform===p));
   list.sort((a,b)=>s==="likes"?b.likes-a.likes:s==="recent"?b.date.localeCompare(a.date):b.views-a.views);
   const target=document.querySelector("#allVideos");
-  if(target) target.innerHTML=list.length?list.map(v=>row(v,true)).join():'<tr><td colspan="6">Aucune publication réelle disponible.</td></tr>';
+  if(target) target.innerHTML=list.length?list.map(v=>row(v,true)).join():'<tr><td colspan="7">Aucune publication réelle disponible.</td></tr>';
   const count=document.querySelector("#videoCount");
   if(count) count.textContent=list.length+" publication"+(list.length>1?"s":"");
 }
