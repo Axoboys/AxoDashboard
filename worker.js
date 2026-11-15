@@ -1,6 +1,9 @@
 const COOKIE = "axo_oauth_state";
 const SESSION_COOKIE = "axo_dashboard_session";
 const SESSION_TTL = 60 * 60 * 24 * 30;
+const INSTAGRAM_STATE_COOKIE = "axo_instagram_oauth_state";
+const INSTAGRAM_SESSION_COOKIE = "axo_instagram_session";
+const META_GRAPH_VERSION = "v27.0";
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/youtube.readonly",
   "https://www.googleapis.com/auth/yt-analytics.readonly"
@@ -49,8 +52,8 @@ async function signSession(payload, secret) {
   const signature = await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(body));
   return body+"."+base64url(signature);
 }
-async function verifySession(request, secret) {
-  const token = cookieValue(request,SESSION_COOKIE);
+async function verifySession(request, secret, cookieName=SESSION_COOKIE) {
+  const token = cookieValue(request,cookieName);
   if (!token || !secret) return null;
   try {
     const [body,signature] = token.split(".");
@@ -190,13 +193,120 @@ async function youtubeDashboard(request,env) {
     });
   } catch(e) { return json({error:"Impossible de récupérer les statistiques YouTube : "+e.message},500); }
 }
+
+async function metaFetch(url) {
+  const response = await fetch(url);
+  const body = await response.json().catch(()=>({}));
+  if (!response.ok || body.error) {
+    const detail=body.error?.error_user_msg||body.error?.message||body.error_description||"Erreur Meta Graph API";
+    throw new Error(typeof detail==="string"?detail:JSON.stringify(detail));
+  }
+  return body;
+}
+async function metaGraph(path, token, params={}) {
+  const url=new URL("https://graph.facebook.com/"+META_GRAPH_VERSION+"/"+path);
+  url.search=new URLSearchParams({...params,access_token:token});
+  return metaFetch(url.toString());
+}
+async function instagramConnect(request,env) {
+  if(!env.META_APP_ID||!env.META_CONFIG_ID||!env.META_REDIRECT_URI||!env.META_APP_SECRET) return json({error:"Configuration Meta incomplète. Vérifie les variables META_APP_ID, META_CONFIG_ID, META_REDIRECT_URI et le secret META_APP_SECRET."},500);
+  const state=randomState();
+  const url=new URL("https://www.facebook.com/dialog/oauth");
+  url.search=new URLSearchParams({client_id:env.META_APP_ID,config_id:env.META_CONFIG_ID,display:"popup",override_default_response_type:"true",redirect_uri:env.META_REDIRECT_URI,response_type:"code",state,prompt:"login"});
+  return new Response(null,{status:302,headers:{Location:url.toString(),"Set-Cookie":cookie(INSTAGRAM_STATE_COOKIE,state,600),"Cache-Control":"no-store"}});
+}
+async function instagramCallback(request,env) {
+  const url=new URL(request.url),state=url.searchParams.get("state"),expected=cookieValue(request,INSTAGRAM_STATE_COOKIE),clear=cookie(INSTAGRAM_STATE_COOKIE,"",0);
+  if(!state||!expected||state!==expected) return new Response("Connexion Instagram refusée : état OAuth invalide. Recommence depuis AXO ANALYTICS.",{status:400,headers:{"Set-Cookie":clear}});
+  if(url.searchParams.has("error")) return new Response("Meta n'a pas autorisé la connexion Instagram : "+(url.searchParams.get("error_description")||url.searchParams.get("error")),{status:400,headers:{"Set-Cookie":clear}});
+  try {
+    if(!env.META_APP_ID||!env.META_APP_SECRET||!env.META_REDIRECT_URI||!env.DB||!env.TOKEN_ENCRYPTION_KEY) throw new Error("Configuration Meta, base D1 ou clé de chiffrement manquante.");
+    const code=url.searchParams.get("code");
+    if(!code) throw new Error("Code d'autorisation Meta absent. Recommence la connexion.");
+    const tokenUrl=new URL("https://graph.facebook.com/"+META_GRAPH_VERSION+"/oauth/access_token");
+    tokenUrl.search=new URLSearchParams({client_id:env.META_APP_ID,client_secret:env.META_APP_SECRET,redirect_uri:env.META_REDIRECT_URI,code});
+    const tokenResponse=await metaFetch(tokenUrl.toString());
+    const accessToken=tokenResponse.access_token||tokenResponse.data?.[0]?.access_token;
+    if(!accessToken) throw new Error("Meta n'a pas retourné de jeton d'accès utilisable.");
+    const me=await metaGraph("me",accessToken,{fields:"id,name"});
+    const assigned=await metaGraph(me.id+"/assigned_instagram_accounts",accessToken,{fields:"id,username,profile_picture_url"});
+    const ig=assigned.data?.[0];
+    if(!ig?.id) throw new Error("Aucun compte Instagram professionnel attribué à cette configuration Meta. Vérifie que ton compte Créateur est sélectionné comme actif dans Unified Login.");
+    const tokens={access_token:accessToken,token_type:tokenResponse.token_type||"bearer",expires_in:tokenResponse.expires_in||null,expiry_date:tokenResponse.expires_in?Date.now()+Number(tokenResponse.expires_in)*1000:null};
+    const encrypted=await encryptToken(tokens,env.TOKEN_ENCRYPTION_KEY),username=ig.username||"Compte Instagram";
+    await env.DB.prepare("INSERT INTO social_accounts (platform, platform_user_id, display_name, avatar_url, token_ciphertext, scopes, updated_at) VALUES ('instagram', ?, ?, ?, ?, ?, datetime('now')) ON CONFLICT(platform, platform_user_id) DO UPDATE SET display_name=excluded.display_name, avatar_url=excluded.avatar_url, token_ciphertext=excluded.token_ciphertext, scopes=excluded.scopes, updated_at=datetime('now')").bind(ig.id,username,ig.profile_picture_url||null,encrypted,"instagram_basic,instagram_manage_insights").run();
+    const account=await env.DB.prepare("SELECT id FROM social_accounts WHERE platform='instagram' AND platform_user_id=?").bind(ig.id).first();
+    const session=await signSession({accountId:account.id,exp:Math.floor(Date.now()/1000)+SESSION_TTL},env.TOKEN_ENCRYPTION_KEY);
+    const target=new URL("/",url.origin);
+    target.searchParams.set("instagram_connected","1");target.searchParams.set("username",username);
+    const headers=new Headers({Location:target.toString(),"Cache-Control":"no-store"});
+    headers.append("Set-Cookie",clear);headers.append("Set-Cookie",cookie(INSTAGRAM_SESSION_COOKIE,session,SESSION_TTL));
+    return new Response(null,{status:302,headers});
+  } catch(e) {
+    return new Response("Impossible de terminer la connexion Instagram : "+e.message,{status:500,headers:{"Set-Cookie":clear,"content-type":"text/plain; charset=utf-8"}});
+  }
+}
+async function authorizedInstagramTokens(request,env) {
+  if(!env.DB||!env.TOKEN_ENCRYPTION_KEY) throw new Error("Base D1 ou clé de chiffrement non configurée.");
+  const session=await verifySession(request,env.TOKEN_ENCRYPTION_KEY,INSTAGRAM_SESSION_COOKIE);
+  if(!session) return {error:json({error:"Session Instagram absente. Connecte ton compte Instagram depuis les paramètres."},401)};
+  const account=await env.DB.prepare("SELECT id, platform_user_id, display_name, avatar_url, token_ciphertext FROM social_accounts WHERE id=? AND platform='instagram'").bind(session.accountId).first();
+  if(!account) return {error:json({error:"Compte Instagram introuvable. Reconnecte-le depuis les paramètres."},401)};
+  const tokens=await decryptToken(account.token_ciphertext,env.TOKEN_ENCRYPTION_KEY);
+  if(!tokens.access_token) throw new Error("Jeton Meta absent. Reconnecte ton compte Instagram.");
+  if(tokens.expiry_date&&tokens.expiry_date<=Date.now()) throw new Error("Le jeton Meta a expiré. Reconnecte ton compte Instagram.");
+  return {account,tokens};
+}
+function metricTotal(data,name) {
+  const metric=data.find(item=>item.name===name);
+  return (metric?.values||[]).reduce((sum,item)=>sum+(Number(item.value)>0?Number(item.value):0),0);
+}
+async function instagramDashboard(request,env) {
+  try {
+    const auth=await authorizedInstagramTokens(request,env);
+    if(auth.error) return auth.error;
+    const {account,tokens}=auth,url=new URL(request.url);
+    const days=Math.min(90,Math.max(1,Number.parseInt(url.searchParams.get("days")||"30",10)||30));
+    const end=new Date(),start=new Date(end.getTime()-(days-1)*86400000),since=Math.floor(start.getTime()/1000),until=Math.floor(end.getTime()/1000);
+    const profile=await metaGraph(account.platform_user_id,tokens.access_token,{fields:"id,username,profile_picture_url,followers_count,media_count"});
+    let insightData=[],analyticsWarning=null;
+    try {
+      const insights=await metaGraph(account.platform_user_id+"/insights",tokens.access_token,{metric:"views,reach,total_interactions,accounts_engaged",period:"day",since:String(since),until:String(until)});
+      insightData=insights.data||[];
+    } catch(e) { analyticsWarning="Le profil est connecté, mais certaines statistiques ne sont pas accessibles : "+e.message; }
+    let media=[];
+    try {
+      const result=await metaGraph(account.platform_user_id+"/media",tokens.access_token,{fields:"id,caption,media_type,media_product_type,timestamp,permalink,like_count,comments_count,thumbnail_url,media_url",limit:"25"});
+      media=await Promise.all((result.data||[]).map(async item=>{
+        let metrics={};
+        try {
+          const r=await metaGraph(item.id+"/insights",tokens.access_token,{metric:"views,reach,saved,shares,total_interactions"});
+          for(const m of r.data||[]) { const v=m.values?.[0]?.value??m.value; if(v!=null) metrics[m.name]=Number(v); }
+        } catch {}
+        const likes=Number(item.like_count||0),comments=Number(item.comments_count||0),views=metrics.views??metrics.reach??0,interactions=metrics.total_interactions??likes+comments;
+        return {id:item.id,title:(item.caption||"Publication Instagram").slice(0,120),type:item.media_product_type==="REELS"?"Reel":item.media_type==="VIDEO"?"Vidéo":item.media_type==="CAROUSEL_ALBUM"?"Carrousel":"Publication",date:item.timestamp?item.timestamp.slice(0,10):"",views,likes,comments,engagement:views?interactions/views*100:0,url:item.permalink||null,thumbnail:item.thumbnail_url||item.media_url||null};
+      }));
+    } catch(e) { analyticsWarning=analyticsWarning||"Les publications Instagram ne sont pas accessibles : "+e.message; }
+    const viewsMetric=insightData.find(item=>item.name==="views");
+    const daily=(viewsMetric?.values||[]).map(item=>({date:item.end_time?.slice(0,10)||"",views:Number(item.value||0)})).filter(item=>item.date);
+    return json({ok:true,source:"instagram",syncedAt:new Date().toISOString(),period:{days},account:{id:profile.id,username:profile.username||account.display_name,avatar:profile.profile_picture_url||account.avatar_url,followers:Number(profile.followers_count||0),mediaCount:Number(profile.media_count||media.length)},analytics:{views:metricTotal(insightData,"views"),reach:metricTotal(insightData,"reach"),interactions:metricTotal(insightData,"total_interactions"),accountsEngaged:metricTotal(insightData,"accounts_engaged")},analyticsWarning,daily,media});
+  } catch(e) { return json({error:"Impossible de récupérer les statistiques Instagram : "+e.message},500); }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/api/auth/youtube/connect") return connect(request,env);
     if (url.pathname === "/api/auth/youtube/callback") return callback(request,env);
     if (url.pathname === "/api/youtube/dashboard" && request.method==="GET") return youtubeDashboard(request,env);
-    if (url.pathname === "/api/auth/logout" && request.method==="POST") return new Response(null,{status:204,headers:{"Set-Cookie":cookie(SESSION_COOKIE,"",0),"Cache-Control":"no-store"}});
+    if (url.pathname === "/api/auth/instagram/connect") return instagramConnect(request,env);
+    if (url.pathname === "/api/auth/instagram/callback") return instagramCallback(request,env);
+    if (url.pathname === "/api/instagram/dashboard" && request.method==="GET") return instagramDashboard(request,env);
+    if (url.pathname === "/api/auth/logout" && request.method==="POST") {
+      const headers=new Headers({"Set-Cookie":cookie(SESSION_COOKIE,"",0),"Cache-Control":"no-store"});
+      headers.append("Set-Cookie",cookie(INSTAGRAM_SESSION_COOKIE,"",0));
+      return new Response(null,{status:204,headers});
+    }
     if (url.pathname === "/api/health") return json({ok:true,service:"axo-analytics"});
     if (env.ASSETS) return env.ASSETS.fetch(request);
     return new Response("AXO ANALYTICS : liaison ASSETS Cloudflare manquante.",{status:500});
