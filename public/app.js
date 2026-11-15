@@ -260,6 +260,10 @@ async function loadYoutube() {
   }
 }
 
+function setInstagramDetail(id,value) {
+  const element=document.getElementById(id);
+  if(element) element.textContent=value===null||value===undefined?"—":fmt(value);
+}
 async function loadInstagram() {
   const days=document.getElementById("dateRange")?.value||"30";
   const statusLine=document.getElementById("instagramDataStatus");
@@ -267,42 +271,35 @@ async function loadInstagram() {
     const response=await fetch("/api/instagram/dashboard?days="+encodeURIComponent(days),{credentials:"same-origin",cache:"no-store"});
     const data=await response.json();
     if(!response.ok) throw new Error(data.error||"Erreur de synchronisation Instagram.");
-    platformData.instagram={
-      connected:true,
-      subscribers:Number(data.account?.followers||0),
-      views:Number(data.analytics?.views||0),
-      likes:Number(data.analytics?.interactions||0),
-      videos:Number(data.account?.mediaCount||0),
-      title:data.account?.username||"Compte Instagram",
-      items:(data.media||[]).map(item=>({
-        title:item.title||"Publication Instagram",platform:"Instagram",type:item.type||"Publication",date:item.date||"",
-        views:Number(item.views||0),likes:Number(item.likes||0),comments:Number(item.comments||0),
-        engagement:Number(item.engagement||0),url:item.url||null,thumbnail:item.thumbnail||null
-      }))
-    };
+    const analytics=data.analytics||{};
+    platformData.instagram={connected:true,subscribers:Number(data.account?.followers||0),views:Number(analytics.views||0),likes:Number(analytics.likes||0),videos:Number(data.account?.mediaCount||0),title:data.account?.username||"Compte Instagram",
+      items:(data.media||[]).map(item=>({title:item.title||"Publication Instagram",platform:"Instagram",type:item.type||"Publication",date:item.date||"",views:Number(item.views||0),likes:Number(item.likes||0),comments:Number(item.comments||0),engagement:Number(item.engagement||0),url:item.url||null,thumbnail:item.thumbnail||null}))};
     const status=document.getElementById("instagramStatus"),button=document.getElementById("connectInstagram");
     if(status){status.textContent="Connecté";status.classList.add("connected")}
     if(button){button.textContent="Compte connecté";button.disabled=true}
     const cards=document.querySelectorAll("#page-instagram .compact-stats .stat-card");
-    const values=[fmt(platformData.instagram.subscribers),fmt(platformData.instagram.views),fmt(platformData.instagram.likes),fmt(data.analytics?.reach||0)];
-    const captions=["abonnés actuels","vues sur "+days+" jours","interactions sur "+days+" jours","portée cumulée sur "+days+" jours"];
-    cards.forEach((card,i)=>{
-      const value=card.querySelector(".stat-value"),foot=card.querySelector(".stat-bottom");
-      if(value)value.textContent=values[i];
-      if(foot)foot.innerHTML='<span class="trend positive">Données réelles</span><span>'+captions[i]+"</span>";
-    });
+    const values=[fmt(platformData.instagram.subscribers),analytics.views==null?"—":fmt(analytics.views),analytics.interactions==null?"—":fmt(analytics.interactions),analytics.reach==null?"—":fmt(analytics.reach)];
+    const captions=["abonnés actuels","vues sur "+days+" jours","interactions sur "+days+" jours","comptes uniques touchés sur "+days+" jours"];
+    cards.forEach((card,i)=>{const value=card.querySelector(".stat-value"),foot=card.querySelector(".stat-bottom");if(value)value.textContent=values[i];if(foot)foot.innerHTML='<span class="trend positive">Données réelles</span><span>'+captions[i]+"</span>";});
+    setInstagramDetail("instagramAccountsEngaged",analytics.accountsEngaged);
+    setInstagramDetail("instagramLikes",analytics.likes);
+    setInstagramDetail("instagramComments",analytics.comments);
+    setInstagramDetail("instagramShares",analytics.shares);
+    setInstagramDetail("instagramSaves",analytics.saves);
+    setInstagramDetail("instagramReplies",analytics.replies);
+    setInstagramDetail("instagramReposts",analytics.reposts);
+    setInstagramDetail("instagramProfileViews",analytics.profileViews);
+    setInstagramDetail("instagramProfileLinks",analytics.profileLinksTaps);
+    setInstagramDetail("instagramWebsiteClicks",analytics.websiteClicks);
     const note=document.querySelector("#page-instagram .platform-note p");
     if(note)note.textContent=data.analyticsWarning||("Compte connecté : @"+(data.account?.username||"Instagram")+". "+(data.account?.mediaCount||0)+" publications au total. Synchronisé le "+new Date(data.syncedAt).toLocaleString("fr-BE")+".");
     const noteTitle=document.querySelector("#page-instagram .platform-note b");
     if(noteTitle)noteTitle.textContent="Compte Instagram connecté";
-    if(statusLine)statusLine.textContent=data.analyticsWarning||"Statistiques actualisées.";
+    if(statusLine)statusLine.textContent=data.analyticsWarning||"Toutes les statistiques disponibles ont été actualisées.";
     updateOverview(days);renderInsights(days);renderTables();
   } catch(error) {
     if(statusLine)statusLine.textContent=error.message;
-    if(!error.message.includes("Session Instagram")&&!error.message.includes("Connecte ton compte Instagram")) {
-      const note=document.querySelector("#page-instagram .platform-note p");
-      if(note)note.textContent=error.message;
-    }
+    if(!error.message.includes("Session Instagram")&&!error.message.includes("Connecte ton compte Instagram")) {const note=document.querySelector("#page-instagram .platform-note p");if(note)note.textContent=error.message;}
     updateOverview(days);renderInsights(days);
   }
 }
