@@ -50,6 +50,9 @@ function updateOverview(days) {
   set("overviewYoutubeViewsPeriod","sur "+days+" jours");
   set("overviewYoutubeLikesPeriod","sur "+days+" jours");
   set("chartTotal",fmt(totals.views));
+  set("insightYoutubeViews",fmt(platformData.youtube.views));
+  const insightBar=document.getElementById("insightYoutubeBar");
+  if(insightBar) insightBar.style.width=totals.views ? (platformData.youtube.views/totals.views*100)+"%" : "0%";
   set("donutTotal",fmt(totals.views));
   set("breakdownYoutube",fmt(platformData.youtube.views));
   set("breakdownTiktok",fmt(platformData.tiktok.views));
