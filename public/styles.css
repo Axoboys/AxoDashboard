@@ -40,3 +40,7 @@ body.light-mode .settings-content{background:#f3f1f7}
 body.light-mode .more{color:#817a90}
 body.light-mode .more:hover{background:#ded9e9;color:#51456d}
 .more{border:0;background:transparent;padding:6px 8px;border-radius:7px;font:inherit;cursor:pointer;line-height:1}
+
+
+/* Instagram detailed insights */
+.instagram-insights-panel{margin-bottom:15px}.instagram-metric-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.instagram-metric{min-width:0;padding:14px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(145deg,#171326,#100e1a)}.instagram-metric span{display:block;color:#9992a9;font-size:8px;font-weight:700;letter-spacing:.8px;line-height:1.5;min-height:24px}.instagram-metric b{display:block;font:600 22px 'Space Grotesk';margin:8px 0 4px;color:var(--text)}.instagram-metric small{display:block;color:var(--muted);font-size:9px;line-height:1.45}@media(max-width:1150px){.instagram-metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:560px){.instagram-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.instagram-metric{padding:11px}.instagram-metric b{font-size:19px}}
