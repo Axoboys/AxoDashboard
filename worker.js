@@ -174,6 +174,8 @@ async function youtubeDashboard(request,env) {
     }
     const videos=videoItems.map(v=>({
       id:v.id,title:v.snippet?.title||"Vidéo sans titre",
+      duration:v.contentDetails?.duration||"PT0S",
+      durationSeconds:(()=>{const m=(v.contentDetails?.duration||"PT0S").match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);return m?Number(m[1]||0)*3600+Number(m[2]||0)*60+Number(m[3]||0):0;})(),
       date:v.snippet?.publishedAt?.slice(0,10)||"",
       thumbnail:v.snippet?.thumbnails?.medium?.url||v.snippet?.thumbnails?.default?.url||null,
       views:Number(v.statistics?.viewCount||0),likes:Number(v.statistics?.likeCount||0),
