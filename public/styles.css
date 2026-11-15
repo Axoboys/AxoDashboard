@@ -24,3 +24,19 @@
 }
 .sidebar-bottom{flex-shrink:0}
 .profile{flex-shrink:0;margin-bottom:4px}
+
+
+/* Softer light theme: muted lavender surfaces instead of pure white */
+:root.light{
+  --bg:#eeecf4;--sidebar:#e8e5ef;--panel:#f3f1f7;--panel2:#e9e6f0;
+  --border:#d8d3e3;--text:#302a3d;--muted:#817a90;--shadow:0 18px 55px #35215b12;
+}
+body.light-mode .stat-card{background:linear-gradient(145deg,#f6f4fa,#eeebf4)}
+body.light-mode .search-box,body.light-mode .text-input{background:#e9e6f0;color:var(--text)}
+body.light-mode .donut:before{background:var(--panel)}
+body.light-mode .sync-card{background:linear-gradient(140deg,#e7e0f2,#eae7f1);border-color:#d2c8e5}
+body.light-mode .workspace{background:#efedf4}
+body.light-mode .settings-content{background:#f3f1f7}
+body.light-mode .more{color:#817a90}
+body.light-mode .more:hover{background:#ded9e9;color:#51456d}
+.more{border:0;background:transparent;padding:6px 8px;border-radius:7px;font:inherit;cursor:pointer;line-height:1}
