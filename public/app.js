@@ -120,9 +120,38 @@ function updateOverview(days) {
   connection("overviewTiktokConnection","overviewTiktokBadge","tiktok");
   connection("overviewInstagramConnection","overviewInstagramBadge","instagram");
   renderGoals();
+  renderInsights(days);
   renderChart(youtubeData?.daily||[]);
   const live=document.querySelector(".live-status");
   if(live) live.innerHTML='<span class="pulse"></span>'+(platforms.some(p=>p.connected)?"DONNÉES RÉELLES":"EN ATTENTE DE CONNEXION");
+}
+function renderInsights(days) {
+  const a=youtubeData?.analytics||{};
+  const views=Number(a.views||0), likes=Number(a.likes||0), comments=Number(a.comments||0);
+  const interactions=likes+comments;
+  const engagement=views>0 ? interactions/views*100 : null;
+  const netSubs=Number(a.subscribersGained||0)-Number(a.subscribersLost||0);
+  const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};
+  set("insightPeriodLabel",days+" derniers jours");
+  set("insightViewsMetric",fmt(views)+" vues");
+  set("insightSubsMetric",youtubeData ? (netSubs>0?"+":"")+fmt(netSubs)+" abonnés" : "— non disponible");
+  set("insightEngagementMetric",engagement===null?"—":engagement.toFixed(2).replace(".",",")+" %");
+  set("insightLikes",fmt(likes));set("insightComments",fmt(comments));
+  set("insightWatchTime",fmt(Math.round(Number(a.estimatedMinutesWatched||0)/60))+" h");
+  set("insightDailyAverage",fmt(Math.round(views/Math.max(1,Number(days)||30))));
+  set("insightViewsDescription",youtubeData?"Vues YouTube sur les "+days+" derniers jours.":"Connecte YouTube pour obtenir cette mesure.");
+  set("insightSubsDescription",youtubeData?"Gagnés ("+fmt(a.subscribersGained||0)+") moins perdus ("+fmt(a.subscribersLost||0)+") sur la période.":"Cette mesure sera disponible après connexion.");
+  set("insightEngagementDescription",views>0?fmt(interactions)+" likes et commentaires pour "+fmt(views)+" vues.":"Le taux sera calculé dès que des vues seront disponibles.");
+  const summary=!youtubeData?"Connecte YouTube pour générer une analyse basée sur tes statistiques réelles.":views===0?"Aucune vue n'a été remontée pour cette période. Essaie une autre période ou vérifie les autorisations Analytics.":"Sur les "+days+" derniers jours, ta chaîne a obtenu "+fmt(views)+" vues et "+fmt(interactions)+" interactions ("+(engagement===null?"taux indisponible":engagement.toFixed(2).replace(".",",")+" % d'engagement") +"). La moyenne est de "+fmt(Math.round(views/Math.max(1,Number(days)||30)))+" vues par jour.";
+  set("insightSummary",summary);
+  const values={youtube:platformData.youtube.views||0,tiktok:platformData.tiktok.views||0,instagram:platformData.instagram.views||0};
+  const max=Math.max(1,...Object.values(values));
+  for(const [key,value] of Object.entries(values)){
+    set("insight"+key[0].toUpperCase()+key.slice(1)+"Views",fmt(value));
+    const bar=document.getElementById("insight"+key[0].toUpperCase()+key.slice(1)+"Bar");
+    if(bar)bar.style.width=(value/max*100)+"%";
+  }
+  set("insightDataStatus",Object.values(platformData).some(p=>p.connected)?"Données connectées":"Aucune connexion");
 }
 function renderChart(daily) {
   const svg=document.getElementById("mainChart");
@@ -180,6 +209,7 @@ async function loadYoutube() {
     };
     youtubeVideos=platformData.youtube.items;
     updateOverview(days);
+    renderInsights(days);
     renderChart(data.daily||[]);
     const status=document.getElementById("youtubeStatus"),button=document.getElementById("connectYoutube");
     if(status){status.textContent="Connecté";status.classList.add("connected")}
@@ -213,6 +243,7 @@ async function loadYoutube() {
     if(statusLine) statusLine.textContent=error.message;
     if(!error.message.includes("Session")&&!error.message.includes("Reconnecte")) toast(error.message);
     updateOverview(days);
+    renderInsights(days);
   }
 }
 function renderAllVideos() {
