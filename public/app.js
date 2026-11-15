@@ -14,9 +14,10 @@ const videos=[
 ];
 let youtubeData=null;
 let youtubeVideos=[];
+const escapeHTML=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;');
 const fmt=n=>n>=1e6?(n/1e6).toFixed(2).replace('.',',')+' M':n>=1e3?(n/1e3).toFixed(n>=1e5?0:1).replace('.',',')+' K':String(n);
 const platformClass=p=>p==='YouTube'?'yt':p==='TikTok'?'tt':'ig';
-function row(v,full=false){return `<tr><td><div class="video-cell"><div class="video-thumb">${v.platform==='YouTube'?'▶':v.platform==='TikTok'?'♪':'◎'}</div><div><b>${v.title}</b><small>${v.type}</small></div></div></td>${full?`<td><span class="platform-tag">${v.platform}</span></td><td>${new Date(v.date+'T12:00:00').toLocaleDateString('fr-BE',{day:'2-digit',month:'short'})}</td>`:`<td><span class="platform-tag">${v.platform}</span></td>`}<td>${fmt(v.views)}</td><td>${fmt(v.likes)}</td>${full?`<td>${v.engagement.toFixed(1).replace('.',',')} %</td>`:`<td>${v.comments.toLocaleString('fr-BE')}</td>`}</tr>`}
+function row(v,full=false){return `<tr><td><div class="video-cell"><div class="video-thumb">${v.platform==='YouTube'?'▶':v.platform==='TikTok'?'♪':'◎'}</div><div><b>${escapeHTML(v.title)}</b><small>${escapeHTML(v.type)}</small></div></div></td>${full?`<td><span class="platform-tag">${v.platform}</span></td><td>${new Date(v.date+'T12:00:00').toLocaleDateString('fr-BE',{day:'2-digit',month:'short'})}</td>`:`<td><span class="platform-tag">${v.platform}</span></td>`}<td>${fmt(v.views)}</td><td>${fmt(v.likes)}</td>${full?`<td>${v.engagement.toFixed(1).replace('.',',')} %</td>`:`<td>${v.comments.toLocaleString('fr-BE')}</td>`}</tr>`}
 function currentVideos(){return [...videos.filter(v=>v.platform!=='YouTube'),...(youtubeData?youtubeVideos:videos.filter(v=>v.platform==='YouTube'))]}
 function renderTables(){const all=currentVideos();document.querySelector('#topVideos').innerHTML=[...all].sort((a,b)=>b.views-a.views).slice(0,4).map(v=>row(v)).join('');['YouTube','TikTok','Instagram'].forEach(p=>{const id=p.toLowerCase()+'Videos';const source=p==='YouTube'&&youtubeData?youtubeVideos:videos.filter(v=>v.platform===p);document.getElementById(id).innerHTML=source.map(v=>row(v)).join('')});renderAllVideos()}
 
