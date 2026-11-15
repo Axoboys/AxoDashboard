@@ -135,7 +135,7 @@ function updateOverview(days) {
   connection("overviewInstagramConnection","overviewInstagramBadge","instagram");
   renderGoals();
   renderInsights(days);
-  renderChart(youtubeData?.daily||[]);
+  renderSelectedChart();
   const live=document.querySelector(".live-status");
   if(live) live.innerHTML='<span class="pulse"></span>'+(platforms.some(p=>p.connected)?"DONNÉES RÉELLES":"EN ATTENTE DE CONNEXION");
 }
@@ -166,6 +166,7 @@ function renderInsights(days) {
   }
   set("insightDataStatus",Object.values(platformData).some(p=>p.connected)?"Données connectées":"Aucune connexion");
 }
+let selectedChartPlatform=localStorage.getItem("axo-chart-platform")||"youtube";
 function renderChart(daily) {
   const svg=document.getElementById("mainChart");
   if(!svg) return;
@@ -190,6 +191,35 @@ function renderChart(daily) {
   }
   const ylabels=document.querySelector(".y-labels");
   if(ylabels) ylabels.innerHTML=[max,max*.66,max*.33,0].map(v=>"<span>"+fmt(Math.round(v))+"</span>").join("");
+}
+function renderSelectedChart() {
+  const platform=selectedChartPlatform;
+  const config={
+    youtube:{title:"Évolution des vues",subtitle:"Vues quotidiennes YouTube · données réelles",legend:"Vues par jour",empty:"Aucune donnée historique YouTube disponible."},
+    instagram:{title:"Performances Instagram",subtitle:"Vues des publications selon leur date de publication · données réelles",legend:"Vues des publications",empty:"Aucune publication Instagram avec des vues et une date disponible."},
+    tiktok:{title:"Performances TikTok",subtitle:"Vues des publications TikTok · données réelles",legend:"Vues des publications",empty:"Aucune donnée TikTok disponible. La connexion TikTok sera ajoutée prochainement."}
+  }[platform]||{title:"Évolution des vues",subtitle:"Données réelles",legend:"Vues",empty:"Aucune donnée disponible."};
+  let rows=[];
+  if(platform==="youtube") rows=youtubeData?.daily||[];
+  else {
+    const items=platformData[platform]?.items||[];
+    const grouped=new Map();
+    items.forEach(item=>{
+      const date=String(item.date||"").slice(0,10);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Number(item.views)))return;
+      grouped.set(date,(grouped.get(date)||0)+Number(item.views||0));
+    });
+    rows=[...grouped.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([date,views])=>({date,views}));
+  }
+  const title=document.getElementById("mainChartTitle"),subtitle=document.getElementById("mainChartSubtitle"),legend=document.getElementById("mainChartLegend");
+  if(title)title.textContent=config.title;
+  if(subtitle)subtitle.textContent=config.subtitle;
+  if(legend)legend.textContent=config.legend;
+  document.querySelectorAll("[data-chart-platform]").forEach(button=>button.classList.toggle("active",button.dataset.chartPlatform===platform));
+  const total=rows.reduce((sum,row)=>sum+Math.max(0,Number(row.views)||0),0);
+  const totalLabel=document.getElementById("chartTotal");if(totalLabel)totalLabel.textContent=fmt(total);
+  renderChart(rows);
+  if(!rows.length){const labels=document.querySelector(".x-labels");if(labels)labels.innerHTML="<span>"+config.empty+"</span>";}
 }
 function setPlatformPageStats(platform, values, captions) {
   const cards=document.querySelectorAll("#page-"+platform+" .compact-stats .stat-card");
@@ -223,7 +253,7 @@ async function loadYoutube() {
     youtubeVideos=platformData.youtube.items;
     updateOverview(days);
     renderInsights(days);
-    renderChart(data.daily||[]);
+    renderSelectedChart();
     const status=document.getElementById("youtubeStatus"),button=document.getElementById("connectYoutube");
     if(status){status.textContent="Connecté";status.classList.add("connected")}
     if(button){button.textContent="Compte connecté";button.disabled=true}
@@ -252,7 +282,7 @@ async function loadYoutube() {
     if(statusLine) statusLine.textContent=data.analyticsWarning||"Statistiques actualisées.";
     renderTables();
   } catch(error) {
-    renderChart([]);
+    renderSelectedChart();
     if(statusLine) statusLine.textContent=error.message;
     if(!error.message.includes("Session")&&!error.message.includes("Reconnecte")) toast(error.message);
     updateOverview(days);
@@ -362,11 +392,31 @@ document.getElementById("goalForm").addEventListener("submit",e=>{
   localStorage.setItem(GOALS_STORAGE_KEY,JSON.stringify(creatorGoals));
   modal.classList.remove("show");renderGoals();toast("Objectifs enregistrés !");
 });
+document.querySelectorAll("[data-chart-platform]").forEach(button=>button.addEventListener("click",()=>{
+  selectedChartPlatform=button.dataset.chartPlatform;
+  localStorage.setItem("axo-chart-platform",selectedChartPlatform);
+  renderSelectedChart();
+}));
 document.querySelectorAll(".settings-tab").forEach(btn=>btn.addEventListener("click",()=>{
   document.querySelectorAll(".settings-tab").forEach(x=>x.classList.remove("active"));
   document.querySelectorAll(".settings-section").forEach(x=>x.classList.remove("active"));
   btn.classList.add("active");document.getElementById("tab-"+btn.dataset.tab).classList.add("active");
 }));
+const ACCENT_PALETTES={
+  violet:["#9a78ff","#7652e8"],purple:["#a855f7","#7e22ce"],blue:["#3b82f6","#1d4ed8"],cyan:["#06b6d4","#0e7490"],teal:["#14b8a6","#0f766e"],green:["#22c55e","#15803d"],lime:["#84cc16","#4d7c0f"],yellow:["#eab308","#a16207"],orange:["#f97316","#c2410c"],coral:["#fb7185","#e11d48"],red:["#ef4444","#b91c1c"],rose:["#f43f5e","#be123c"],pink:["#ec4899","#be185d"],magenta:["#d946ef","#a21caf"],indigo:["#6366f1","#4338ca"],slate:["#64748b","#334155"]
+};
+function applyAccent(name,save=true){
+  const palette=ACCENT_PALETTES[name]||ACCENT_PALETTES.violet;
+  const root=document.documentElement;
+  root.style.setProperty("--accent",palette[0]);
+  root.style.setProperty("--accent-strong",palette[1]);
+  root.style.setProperty("--accent-soft",palette[0]+"20");
+  root.style.setProperty("--accent-border",palette[0]+"55");
+  root.dataset.accent=ACCENT_PALETTES[name]?name:"violet";
+  const selector=document.getElementById("accentColorSelect");if(selector)selector.value=root.dataset.accent;
+  if(save)localStorage.setItem("axo-accent",root.dataset.accent);
+  if(typeof renderSelectedChart==="function")renderSelectedChart();
+}
 function setTheme(light) {
   document.body.classList.toggle("light-mode",light);document.documentElement.classList.toggle("light",light);
   const darkSwitch=document.getElementById("darkSwitch");
@@ -377,6 +427,9 @@ function setTheme(light) {
 }
 document.getElementById("themeToggle").onclick=()=>setTheme(!document.body.classList.contains("light-mode"));
 setTheme(localStorage.getItem("axo-light")==="true");
+applyAccent(localStorage.getItem("axo-accent")||"violet",false);
+const accentColorSelect=document.getElementById("accentColorSelect");
+if(accentColorSelect)accentColorSelect.addEventListener("change",event=>{applyAccent(event.target.value);toast("Couleur dominante mise à jour !");});
 document.getElementById("darkSwitch").addEventListener("change",e=>setTheme(!e.target.checked));
 document.getElementById("motionSwitch").addEventListener("change",e=>document.body.classList.toggle("no-motion",!e.target.checked));
 document.getElementById("saveProfile").onclick=()=>{
@@ -384,7 +437,7 @@ document.getElementById("saveProfile").onclick=()=>{
   if(name){document.querySelector(".profile b").textContent=name;toast("Profil enregistré localement")}else toast("Entre un nom valide");
 };
 document.getElementById("resetDemo").onclick=()=>{
-  localStorage.removeItem("axo-light");setTheme(false);document.body.classList.remove("no-motion");
+  localStorage.removeItem("axo-light");localStorage.removeItem("axo-accent");setTheme(false);applyAccent("violet",false);document.body.classList.remove("no-motion");
   document.getElementById("motionSwitch").checked=true;toast("Préférences réinitialisées");
 };
 const currentDateLabel=document.getElementById("currentDateLabel");
